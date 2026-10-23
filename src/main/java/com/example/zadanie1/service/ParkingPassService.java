@@ -7,6 +7,7 @@ import com.example.zadanie1.repository.ParkingPassRepository;
 import com.example.zadanie1.repository.ParkingZoneRepository;
 import com.example.zadanie1.repository.VehicleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -35,11 +36,25 @@ public class ParkingPassService {
                 .orElseThrow(() -> new RuntimeException("ParkingPass not found with id: " + id));
     }
 
+    @Transactional
     public ParkingPass create(Long vehicleId, Long zoneId, LocalDate startDate, LocalDate endDate) {
         Vehicle vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found: " + vehicleId));
         ParkingZone zone = zoneRepository.findById(zoneId)
                 .orElseThrow(() -> new RuntimeException("Zone not found: " + zoneId));
+
+        if (startDate.isAfter(endDate)) {
+            throw new RuntimeException("Start date cannot be after end date");
+        }
+
+        // Бизнес-правило: Проверка на пересечение дат
+        boolean hasOverlap = passRepository.findAll().stream()
+                .filter(p -> p.getVehicle().getId().equals(vehicleId) && p.getZone().getId().equals(zoneId))
+                .anyMatch(p -> !(endDate.isBefore(p.getStartDate()) || startDate.isAfter(p.getEndDate())));
+
+        if (hasOverlap) {
+            throw new RuntimeException("Overlapping parking pass already exists for this vehicle and zone");
+        }
 
         ParkingPass pass = new ParkingPass();
         pass.setVehicle(vehicle);
@@ -55,7 +70,6 @@ public class ParkingPassService {
         ParkingPass pass = getById(id);
         if (updated.getStartDate() != null) pass.setStartDate(updated.getStartDate());
         if (updated.getEndDate() != null) pass.setEndDate(updated.getEndDate());
-        // Пересчитываем статус
         pass.setStatus(calculateStatus(pass.getStartDate(), pass.getEndDate()));
         return passRepository.save(pass);
     }
@@ -64,7 +78,6 @@ public class ParkingPassService {
         passRepository.deleteById(id);
     }
 
-    // Бизнес-логика: статус зависит от текущей даты
     private String calculateStatus(LocalDate start, LocalDate end) {
         LocalDate today = LocalDate.now();
         if (today.isBefore(start) || today.isAfter(end)) {

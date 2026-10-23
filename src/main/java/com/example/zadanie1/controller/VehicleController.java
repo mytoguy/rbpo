@@ -43,4 +43,8 @@ public class VehicleController {
         vehicleService.delete(id);
         return ResponseEntity.noContent().build();
     }
+    @PatchMapping("/{id}/transfer")
+    public ResponseEntity<Vehicle> transferVehicle(@PathVariable Long id, @RequestParam Long newOwnerId) {
+        return ResponseEntity.ok(vehicleService.transferVehicle(id, newOwnerId));
+    }
 }
